@@ -33,7 +33,8 @@ This project provides a comprehensive solution for converting ePub files to MP3 
 2. Install required Python libraries: `pip install ebooklib beautifulsoup4`
 3. Download and put the ffmpeg.exe in root repo from https://ffmpeg.org/
 4. Choose your dictionary (.dic from dictionaries)
-5. Customize voice settings as needed in `epub_to_mp3.ps1`
+5. Customize settings as needed in `setup.json` 
+- (when running, you have InstalledVoices.csv generated : it may help to find installed voice name)
 
 ## Usage
 

@@ -5,11 +5,23 @@ import shutil
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
-import glob
+import json
+
+# Load setup.json content
+def load_setup():
+    setup_file_path = 'setup.json'  # Adjust the path as necessary
+    with open(setup_file_path, 'r', encoding='utf-8') as file:
+        setup_data = json.load(file)
+    return setup_data
+
+# Example usage
+setup_data = load_setup()
+
+# Accessing the values
+dictionary_path = setup_data['dictionary_path']
 
 # Set base directory path and dictionary files
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-DIC_FILES = glob.glob(os.path.join(BASE_PATH, "*.dic"))
 
 # Constants for cleaning the content
 DEST_FOLDER_BASE = "extracted_chapters"
@@ -26,11 +38,11 @@ UNSUPPORTED_CHARS_MAP = {
     '⅔': '2/3', '¼': '1/4', '¾': '3/4',
 }
 
-def load_dictionary(dic_files):
+def load_dictionary():
     """Loads replacement patterns from the first .dic file found."""
     dic_content = []
-    if dic_files:
-        with open(dic_files[0], 'r', encoding='utf-8') as file:
+    if dictionary_path:
+        with open(dictionary_path, 'r', encoding='utf-8') as file:
             for line in file:
                 parts = line.strip().split('=', 1)
                 if len(parts) == 2:
@@ -140,7 +152,7 @@ def extract_and_save_chapters(epub_filepath):
         shutil.rmtree(dest_folder)
     os.makedirs(dest_folder)
     
-    dic_replacements = load_dictionary(DIC_FILES)
+    dic_replacements = load_dictionary()
     real_index = 1
     for item in book.get_items():
         real_index += process_document(item, dest_folder, real_index, dic_replacements)
@@ -148,7 +160,6 @@ def extract_and_save_chapters(epub_filepath):
 
 if __name__ == "__main__":
     epub_filepath = sys.argv[1] if len(sys.argv) > 1 else None
-    #epub_filepath = 'G:\Livres\Bibliothèque de programmation\Robert C. Martin\The Robert C. Martin Clean Code Coll (38)\The Robert C. Martin Clean Code - Robert C. Martin.epub'  # Change this to your EPUB file path
     if epub_filepath:
         extract_and_save_chapters(epub_filepath)
     else:

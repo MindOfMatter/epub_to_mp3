@@ -1,9 +1,20 @@
 ﻿# Clear the screen
 Clear-Host
 
+# Load setup.json content
+$setupJsonPath = Join-Path -Path $Global:currentPath -ChildPath "setup.json"
+$setupConfig = Get-Content -Path $setupJsonPath -Raw | ConvertFrom-Json
+
+# Accessing the values
+$Global:defaultCoverPath = $setupConfig.default_cover_path
+$Global:defaultLibraryPath = $setupConfig.default_library_path
+$Global:ebookPath = $setupConfig.default_ebook_path
+$Global:voiceName = $setupConfig.voice_name
+$Global:VoiceRate = $setupConfig.voice_rate
+$Global:VoiceVolume = $setupConfig.voice_volume
+
 $Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 $Global:ffmpegPath = Join-Path -Path $Global:currentPath -ChildPath "ffmpeg.exe"
-$Global:defaultCoverPath = "C:\Program Files\Calibre2\app\resources\catalog\DefaultCover.jpg"
 $Global:WaitTimeInSeconds = 10
 
 # Helper Functions
@@ -31,11 +42,8 @@ function CheckFolderPath {
 
 function GetEbookPath {
     [CmdletBinding()]
-    param (
-        [string]$DefaultPath = "G:\Livres\"
-    )
     $dialog = New-Object System.Windows.Forms.OpenFileDialog
-    $dialog.InitialDirectory = $DefaultPath
+    $dialog.InitialDirectory = $Global:defaultLibraryPath
     $dialog.Filter = "ePub files (*.epub)|*.epub"
     $result = $dialog.ShowDialog()
     if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -175,6 +183,22 @@ function GetTrackName {
     return $inputFileName -replace '^[^-]* - ', ''
 }
 
+function GetTrackNumber {
+    param(
+        [string]$inputFilePath
+    )
+    # Extract the numeric part from the file name
+    $inputFileName = [System.IO.Path]::GetFileNameWithoutExtension($inputFilePath)
+    if ($inputFileName -match '^\d+') {
+        # If the file name starts with numbers, parse them to an integer
+        $number = [int]$Matches[0]
+        return $number
+    } else {
+        # Return 0 or another default value if no number is found
+        return 0
+    }
+}
+
 function ConvertWAVToMP3 {
     param(
         [string]$InputWAVFilePath,
@@ -184,6 +208,8 @@ function ConvertWAVToMP3 {
     Write-Host "`nalbumName: $albumName"
     $trackName = GetTrackName -inputFilePath $InputWAVFilePath
     Write-Host "`ntrackName: $trackName"
+    $trackNumber = GetTrackNumber -inputFilePath $InputWAVFilePath
+    Write-Host "`ntrackNumber: $trackNumber"
 
     # Determine the cover image path
     $parentPath = Split-Path -Parent $Global:ebookPath
@@ -193,7 +219,7 @@ function ConvertWAVToMP3 {
     if (Test-Path -Path $coverPath -PathType Leaf) {
         $coverImagePath = $coverPath
     } else {
-        $coverImagePath = "C:\Program Files\Calibre2\app\resources\catalog\DefaultCover.jpg"
+        $coverImagePath = $Global:defaultCoverPath
     }
 
     # Define the command to convert WAV to MP3 and set the cover image
@@ -208,6 +234,7 @@ function ConvertWAVToMP3 {
         '-metadata', "title=`'$trackName`'", # Title metadata
         '-metadata', "artist=`'Unknown Artist`'", # Artist metadata
         '-metadata', "album=`'$albumName`'",     # Album metadata
+        '-metadata', "track=`'$trackNumber`'",   # Track number
         '-disposition:v:0', 'attached_pic',  # Set image as cover art
         "`"$OutputMP3FilePath`""          # Output MP3 file
     )
@@ -345,10 +372,9 @@ function CreateOrUpdatePlaylist {
 # Main Script Execution
 Initialize
 
-$Global:ebookPath = "G:\Livres\Bibliothèque de programmation\Robert C. Martin\The Robert C. Martin Clean Code Coll (38)\The Robert C. Martin Clean Code - Robert C. Martin.epub"
 # Setup and User Prompts
 if (-not $Global:ebookPath) {
-    $Global:ebookPath = GetEbookPath -DefaultPath "G:\Livres\"
+    $Global:ebookPath = GetEbookPath
 }
 
 # Convert Epub to Txt and allow user to edit
@@ -359,10 +385,5 @@ $ebookName = [System.IO.Path]::GetFileNameWithoutExtension($Global:ebookPath)
 $inputFolderPath = Join-Path -Path $Global:currentPath -ChildPath "extracted_chapters\$ebookName"
 $outputFolderPath = Join-Path -Path $Global:currentPath -ChildPath "output\$ebookName"
 
-# Define voice variables
-$Global:VoiceRate = -1
-$Global:VoiceVolume = 30
-$desiredVoiceName = "Acapela Telecom HQ TTS French (Julie 22 kHz)"
-
 # Convert text files to audio
-ConvertTxtToMP3AndEdit -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $desiredVoiceName
+ConvertTxtToMP3AndEdit -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $Global:voiceName
