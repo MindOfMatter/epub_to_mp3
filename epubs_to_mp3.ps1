@@ -3,7 +3,7 @@ Clear-Host
 
 # Load setup.json content
 $setupJsonPath = Join-Path -Path $Global:currentPath -ChildPath "setup.json"
-$setupConfig = Get-Content -Path $setupJsonPath -Raw | ConvertFrom-Json
+$setupConfig = Get-Content -Path $setupJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 $Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 
@@ -30,9 +30,10 @@ $skipConversion = Read-Host "Skip the Epubs to txt conversion? (Y/N, default: N)
 if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
     foreach ($ebookPath in $Global:ebookPaths) {
         $Global:ebookPath = $ebookPath
+        Write-Host "`nebookPath : $ebookPath"
 
         # Convert Epub to Txt
-        ConvertEpubToTxt -EbookPath $ebookPath
+        ConvertEpubToTxtAndEdit
     }
 
 } else {
@@ -41,11 +42,24 @@ if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
 
 $skipConversion = Read-Host "Skip the txts to mp3 conversion? (Y/N, default: N)"
 if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
+
+    DisplayVoicesAndSave
+
+    # Check if the resolver script exists and then source it
+    $resolverScriptPath = "$Global:currentPath\epub_to_mp3_resolver.ps1"
+    if (Test-Path -Path $resolverScriptPath) {
+        . $resolverScriptPath  # Dot-source the script to import its functions
+        UpdateAndRebootForSynthesizerFix  # Now you can call the function directly
+    } else {
+        Write-Host "Ignore the optional voice resolver part"
+    }
+
     $totalEbooks = $Global:ebookPaths.Count
     $ebookIndex = 1 # Initialize counter for file numbering
 
     foreach ($ebookPath in $Global:ebookPaths) {
         $Global:ebookPath = $ebookPath
+        Write-Host "`nebookPath : $ebookPath"
 
         # Prepare paths for text-to-audio conversion
         $ebookName = [System.IO.Path]::GetFileNameWithoutExtension($ebookPath)
