@@ -7,9 +7,12 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 import json
 
+# Set base directory path and dictionary files
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+setup_file_path = os.path.join(BASE_PATH, 'setup.json')
+
 # Load setup.json content
-def load_setup():
-    setup_file_path = 'setup.json'  # Adjust the path as necessary
+def load_setup(): # Adjust the path as necessary
     with open(setup_file_path, 'r', encoding='utf-8') as file:
         setup_data = json.load(file)
     return setup_data
@@ -18,11 +21,9 @@ def load_setup():
 setup_data = load_setup()
 
 # Accessing the values
-dictionary_path = setup_data['dictionary_path']
+dictionary = setup_data['dictionary']
+dictionary_path = os.path.join(BASE_PATH, "dictionaries", dictionary)
 default_ebook_path = setup_data['default_ebook_path']
-
-# Set base directory path and dictionary files
-BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # Constants for cleaning the content
 DEST_FOLDER_BASE = "extracted_chapters"
