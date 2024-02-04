@@ -1,3 +1,7 @@
+<div align=center>
+<img src="https://github.com/MindOfMatter/epub_to_mp3/blob/main/epub_to_mp3.ico">
+</div>
+
 # ePub to MP3 Converter
 
 ## Description
