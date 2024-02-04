@@ -38,6 +38,20 @@ UNSUPPORTED_CHARS_MAP = {
     '\u03c6': 'phi', '\u03c0': 'pi', '\u03bc': 'mu', '\u03b5': 'epsilon',
     '\u2032': "'", '\u2044': '/', '\u03b7': 'eta', '½': '1/2', '⅓': '1/3',
     '⅔': '2/3', '¼': '1/4', '¾': '3/4',
+    '\u2192': '->',  # Adding the arrow character with its replacement
+    '\u2190': '<-',  # Leftwards arrow
+    '\u2191': '^',   # Upwards arrow
+    '\u2192': '->',  # Rightwards arrow (already added)
+    '\u2193': 'v',   # Downwards arrow
+    '\u2194': '<->', # Left right arrow
+    '\u2195': '^v',  # Up down arrow
+    '\u21d0': '<<-', # Leftwards double arrow
+    '\u21d2': '->>', # Rightwards double arrow
+    '\u21d4': '<->>',# Left right double arrow
+    '\u266a': 'note',  # Musical note
+    '\u2212': '-',     # Minus sign
+    '\u0141': 'L',     # Latin capital letter L with stroke
+    '\u014d': 'o',  # Latin small letter O with macron
 }
 
 def load_dictionary():
@@ -121,7 +135,15 @@ def get_title_suffix(soup):
                 text_content = next(child.stripped_strings, None)
                 if text_content:
                     text = text_content[:50]
-                    text = text.strip().replace(':', ' -').replace('?', '').replace('/', '-').replace('\\', '-')
+                    text = text.strip() \
+                        .replace(':', ' -') \
+                        .replace('?', '') \
+                        .replace('/', '-') \
+                        .replace('\\', '-') \
+                        .replace('\n', ' ') \
+                        .replace('\.', '_') \
+                        .replace('"', '') \
+                        .replace('*', '')
                     return " - " + text
     return ""
 
