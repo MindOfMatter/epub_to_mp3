@@ -2,7 +2,7 @@
     "default_cover_path": "C:\\Program Files\\Calibre2\\app\\resources\\catalog\\DefaultCover.jpg",
     "default_library_path": "G:\\Livres\\",
     "default_ebook_path": "",
-    "dictionary_path": ".\\dictionaries\\French.dic",
+    "dictionary": "French.dic",
     "voice_name": "Place name of your sapi tts voice in here",
     "voice_rate": -1,
     "voice_volume": 30
