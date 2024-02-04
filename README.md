@@ -1,3 +1,5 @@
+https://github.com/MindOfMatter/epub_to_mp3/blob/main/epub_to_mp3.ico
+
 # ePub to MP3 Converter
 
 ## Description
