@@ -1,6 +1,6 @@
 ﻿# Load setup.json content
 $setupJsonPath = Join-Path -Path $Global:currentPath -ChildPath "setup.json"
-$setupConfig = Get-Content -Path $setupJsonPath -Raw | ConvertFrom-Json
+$setupConfig = Get-Content -Path $setupJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 $Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 
@@ -115,17 +115,6 @@ function ConvertTextToSpeech {
         [string]$OutputFilePath,
         [string]$VoiceName
     )
-    
-    DisplayVoicesAndSave
-
-    # Check if the resolver script exists and then source it
-    $resolverScriptPath = "$Global:currentPath\epub_to_mp3_resolver.ps1"
-    if (Test-Path -Path $resolverScriptPath) {
-        . $resolverScriptPath  # Dot-source the script to import its functions
-        UpdateAndRebootForSynthesizerFix  # Now you can call the function directly
-    } else {
-        Write-Host "Ignore the optional voice resolver part"
-    }
 
     $synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer
     if ($VoiceName) {
@@ -203,6 +192,18 @@ function ConvertTxtToMP3AndEdit {
 
     $skipConversion = Read-Host "Skip the txt to mp3 conversion? (Y/N, default: N)"
     if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
+        
+        DisplayVoicesAndSave
+
+        # Check if the resolver script exists and then source it
+        $resolverScriptPath = "$Global:currentPath\epub_to_mp3_resolver.ps1"
+        if (Test-Path -Path $resolverScriptPath) {
+            . $resolverScriptPath  # Dot-source the script to import its functions
+            UpdateAndRebootForSynthesizerFix  # Now you can call the function directly
+        } else {
+            Write-Host "Ignore the optional voice resolver part"
+        }
+
         # Convert Txt to MP3
         ConvertTxtToMP3 -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $desiredVoiceName
 
