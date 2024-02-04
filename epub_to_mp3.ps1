@@ -231,10 +231,10 @@ function ConvertWAVToMP3 {
         '-map', '1:0',                     # Map image stream
         '-codec:a', 'libmp3lame',          # Audio codec
         '-qscale:a', '2',                  # Quality scale for audio
-        '-metadata', "title=`'$trackName`'", # Title metadata
-        '-metadata', "artist=`'Unknown Artist`'", # Artist metadata
-        '-metadata', "album=`'$albumName`'",     # Album metadata
-        '-metadata', "track=`'$trackNumber`'",   # Track number
+        '-metadata', "title=`"$trackName`"", # Title metadata
+        '-metadata', "artist=`"Unknown Artist`"", # Artist metadata
+        '-metadata', "album=`"$albumName`"",     # Album metadata
+        '-metadata', "track=`"$trackNumber`"",   # Track number
         '-disposition:v:0', 'attached_pic',  # Set image as cover art
         "`"$OutputMP3FilePath`""          # Output MP3 file
     )
@@ -249,6 +249,27 @@ function ConvertWAVToMP3 {
     } else {
         Write-Host "`nFailed to convert WAV to MP3 for: $InputWAVFilePath"
     }
+}
+
+function ConvertAllWAVToMP3 {
+    param(
+        [string]$InputFolderPath
+    )
+    
+    Write-Host "ConvertAllWAVToMP3 InputFolderPath : $InputFolderPath"
+    
+    # Retrieve all .wav files from the specified folder
+    $wavFiles = Get-ChildItem -Path $InputFolderPath -Filter *.wav
+    
+    foreach ($wavFile in $wavFiles) {
+        $inputWAVFilePath = $wavFile.FullName
+        $outputMP3FilePath = $inputWAVFilePath -replace '\.wav$', '.mp3'
+        
+        # Call the ConvertWAVToMP3 function for each file
+        ConvertWAVToMP3 -InputWAVFilePath $inputWAVFilePath -OutputMP3FilePath $outputMP3FilePath
+    }
+
+    CreateOrUpdatePlaylist -OutputFolderPath $outputFolderPath
 }
 
 function ConvertEpubToTxtAndEdit {
@@ -350,12 +371,14 @@ function CreateOrUpdatePlaylist {
     $playlistFilePath = Join-Path -Path $OutputFolderPath -ChildPath $PlaylistName
 
     # Check if playlist file exists, if not, create it
-    if (-not (Test-Path -Path $playlistFilePath)) {
-        New-Item -Path $playlistFilePath -ItemType File
-        Write-Host "Playlist file created: $PlaylistName"
+    if (Test-Path -Path $playlistFilePath) {
+        Remove-Item -Path $playlistFilePath
+        Write-Host "Overwritting existing playlist file: $PlaylistName"
     } else {
-        Write-Host "Updating existing playlist file: $PlaylistName"
+        Write-Host "Playlist file created: $PlaylistName"
     }
+    
+    New-Item -Path $playlistFilePath -ItemType File
 
     # Get all MP3 files in the output folder
     $mp3Files = Get-ChildItem -Path $OutputFolderPath -Filter "*.mp3"
@@ -387,3 +410,6 @@ $outputFolderPath = Join-Path -Path $Global:currentPath -ChildPath "output\$eboo
 
 # Convert text files to audio
 ConvertTxtToMP3AndEdit -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $Global:voiceName
+
+# Uncomment if remaning .wav
+ConvertAllWAVToMP3 -InputFolderPath $outputFolderPath
