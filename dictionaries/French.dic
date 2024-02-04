@@ -8,6 +8,7 @@ temps à autre= temps zà autre
 temps en temps= temps zan temps
 (je|tu|il|elle) sens([\s\.\?!,])= Je san$2
 6([A-z])= sixe $1
+8([A-z])= huite $1
 (.)\(= $1 [:] ouvrir la parenthèse [:] 
 \)(.)= [:] fermer la parenthèse [:] $1 
 /(.)= [:]slashe e[:]$1 
