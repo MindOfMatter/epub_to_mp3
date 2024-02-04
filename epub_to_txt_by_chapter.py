@@ -19,6 +19,7 @@ setup_data = load_setup()
 
 # Accessing the values
 dictionary_path = setup_data['dictionary_path']
+default_ebook_path = setup_data['default_ebook_path']
 
 # Set base directory path and dictionary files
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -160,6 +161,8 @@ def extract_and_save_chapters(epub_filepath):
 
 if __name__ == "__main__":
     epub_filepath = sys.argv[1] if len(sys.argv) > 1 else None
+    if default_ebook_path:
+        epub_filepath = default_ebook_path
     if epub_filepath:
         extract_and_save_chapters(epub_filepath)
     else:
