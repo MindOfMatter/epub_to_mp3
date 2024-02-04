@@ -49,9 +49,9 @@ This project provides a comprehensive solution for converting ePub files to MP3 
 3. After asked, if you press N or n to skip step (epub to txts and txts to mp3)
 4. The script will process the ePub file, convert it to MP3 (WAV while processing), and save it in the specified output directory.
 
-- `epubs_to_mp3.ps1` : convert multiple epub to mp3 files by chapter
+- `epubs_to_mp3.ps1` : convert multiple epubs to mp3 files by chapter
 
-1. Put in `setup.json` the array string epub file paths into `"ready_ebook_paths"`
+1. Set in `setup.json` the array string epub file paths into `"ebook_paths"`
 2. Run `epub_to_mp3.ps1` with PowerShell.
 3. After asked, if you press N or n to skip step (epub to txts and txts to mp3)
 4. The script will process the ePub file, convert it to MP3 (WAV while processing), and save it in the specified output directory.
