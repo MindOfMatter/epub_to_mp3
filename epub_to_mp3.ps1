@@ -49,6 +49,3 @@ $outputFolderPath = Join-Path -Path $Global:currentPath -ChildPath "output\$eboo
 
 # Convert text files to audio
 ConvertTxtToMP3AndEdit -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $Global:voiceName
-
-# Uncomment if remaning .wav
-#ConvertAllWAVToMP3 -InputFolderPath $outputFolderPath
