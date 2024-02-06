@@ -7,6 +7,8 @@ $setupConfig = Get-Content -Path $setupJsonPath -Raw -Encoding UTF8 | ConvertFro
 
 $Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 
+$Global:maxConcurrentJobs = $setupConfig.max_concurrent_speech_jobs
+
 # Accessing the values
 $Global:defaultLibraryPath = $setupConfig.default_library_path
 $Global:ebookPaths = $setupConfig.ebook_paths
@@ -67,7 +69,7 @@ if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
         $outputFolderPath = Join-Path -Path $Global:currentPath -ChildPath "output\$ebookName"
 
         # Convert text files to audio
-        ConvertTxtToMP3 -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $Global:voiceName
+        ConvertTxtToWAV -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $Global:voiceName -maxConcurrentJobs $Global:maxConcurrentJobs
 
         $ebookIndex++ # Increment counter after processing each file
 
@@ -78,6 +80,10 @@ if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
             }
         }
     }
+
+    ConvertAllWAVToMP3 -InputFolderPath $outputFolderPath
+
+    CreateOrUpdatePlaylist -OutputFolderPath $outputFolderPath
 } else {
     Write-Host "Txts to mp3 conversion skipped."
 }
