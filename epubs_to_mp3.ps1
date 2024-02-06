@@ -79,11 +79,11 @@ if ($skipConversion -ne 'Y' -and $skipConversion -ne 'y') {
                 break
             }
         }
+
+        ConvertAllWAVToMP3 -InputFolderPath $outputFolderPath
+
+        CreateOrUpdatePlaylist -OutputFolderPath $outputFolderPath
     }
-
-    ConvertAllWAVToMP3 -InputFolderPath $outputFolderPath
-
-    CreateOrUpdatePlaylist -OutputFolderPath $outputFolderPath
 } else {
     Write-Host "Txts to mp3 conversion skipped."
 }
