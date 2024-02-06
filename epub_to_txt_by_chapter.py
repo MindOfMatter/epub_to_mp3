@@ -54,6 +54,8 @@ UNSUPPORTED_CHARS_MAP = {
     '\u014d': 'o',  # Latin small letter O with macron
     '\u0101': 'a',  # Latin small letter A with macron
     '\u2500': '-',  # Box drawing light horizontal
+    '\u2002': ' ',  # Replace en space with a regular space
+    '\u010d': 'c',     # Latin small letter C with caron
 }
 
 def load_dictionary():
