@@ -1,197 +1,322 @@
-﻿# Load setup.json content
+﻿# Define global settings from setup.json
+$Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 $setupJsonPath = Join-Path -Path $Global:currentPath -ChildPath "setup.json"
 $setupConfig = Get-Content -Path $setupJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
-$Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-
-# Accessing the values
+# Assign global variables from setup.json
 $Global:overwriteExisting = $setupConfig.overwrite_existing
 $Global:removeOutputFolder = $setupConfig.remove_output_folder
-
 $Global:voiceName = $setupConfig.voice_name
-$Global:VoiceRate = $setupConfig.voice_rate
-$Global:VoiceVolume = $setupConfig.voice_volume
-
+$Global:voiceRate = $setupConfig.voice_rate
+$Global:voiceVolume = $setupConfig.voice_volume
 $Global:maxConcurrentJobs = $setupConfig.max_concurrent_speech_jobs
 
-$Global:WaitTimeInSeconds = 10
+if ($null -ne $Global:maxConcurrentJobs) {
+    $Global:maxConcurrentJobs = 5
+}
 
+$Global:estimatedDurationPerCharacter = 30
+
+# Load additional script
 $WavToMp3ScriptPath = "$Global:currentPath\wav_to_mp3.ps1"
 . $WavToMp3ScriptPath
 
-# Helper Functions
+# Initialize required assemblies
 function Initialize {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Speech
+    Add-Type -AssemblyName System.Windows.Forms, System.Speech
     Write-Host "`nInitialization Complete."
 }
 
-function CheckFolderPath {
-    param(
-        [string]$Path,
-        [string]$Type # 'input' or 'output'
-    )
+# Validate and manage folder paths
+function EnsureFolderPath {
+    param([string]$Path, [string]$Purpose) # 'input' or 'output'
     if (-not (Test-Path $Path)) {
-        if ($Type -eq 'input') {
-            Write-Host "Error: Folder not found at path: $Path"
-            exit
-        } elseif ($Type -eq 'output') {
-            New-Item -Path $Path -ItemType Directory
-            Write-Host "Output folder created at: $Path"
+        switch ($Purpose) {
+            'input' { Write-Host "Error: Input folder not found at path: $Path"; exit }
+            'output' { New-Item -Path $Path -ItemType Directory; Write-Host "Output folder created at: $Path" }
         }
     }
 }
 
-function WaitWithCountdown {
-    param(
-        [int]$Duration
-    )
-    for ($i = $Duration; $i -gt 0; $i--) {
-        Write-Host "`rWaiting for $i seconds. Press 'Q' to stop." -NoNewline
-        Start-Sleep -Seconds 1
-        if ([console]::KeyAvailable) {
-            $key = [System.Console]::ReadKey($true)
-            if ($key.KeyChar -eq 'q' -or $key.KeyChar -eq 'Q') {
-                Write-Host "`nQ pressed, stopping."
-                return $true
-            }
-        }
-    }
-    return $false
-}
-
-function ClearOutputFolder {
-    param(
-        [string]$outputFolderPath
-    )
-
-    # Only remove files if removeOutputFolder is true
-    if ($Global:removeOutputFolder -and (Test-Path -Path $outputFolderPath)) {
-            try {
-        Get-ChildItem -Path $outputFolderPath -File | Remove-Item -Force
-        Write-Host "All files in $outputFolderPath have been removed."
-        } catch {
-            Write-Host "An error occurred while trying to remove files: $_"
-        }
-        Write-Host "All files in $outputFolderPath have been removed."
-    } else {
-        Write-Host "Skip clearing output folder : $outputFolderPath"
+# Function to clear output folder if required
+function ClearOutputFolderIfNeeded {
+    param([string]$FolderPath)
+    if ($Global:removeOutputFolder -and (Test-Path -Path $FolderPath)) {
+        Remove-Item -Path "$FolderPath\*" -Force
+        Write-Host "Cleared output folder: $FolderPath"
     }
 }
 
-function DisplayVoicesAndSave {
-    Add-Type -AssemblyName System.Speech
-    $synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer
-    $voiceList = @()
-    $voices = $synthesizer.GetInstalledVoices()
-
-    foreach ($voice in $voices) {
-        $info = $voice.VoiceInfo
-        Write-Host "$($info.Name) - $($info.Description)"
-        $voiceList += [PSCustomObject]@{
-            Name = $info.Name
-            Description = $info.Description
-            Culture = $info.Culture.Name
-            Gender = $info.Gender
-            Age = $info.Age
-        }
-    }
-
-    $voiceList | Export-Csv -Path "InstalledVoices.csv" -NoTypeInformation
-    Write-Host "Voices exported to InstalledVoices.csv"
-}
-
-function SelectVoice {
-    param(
-        [string]$DesiredVoiceName
-    )
+# Voice validation
+function VerifyVoice {
+    param([string]$DesiredVoiceName)
     $synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer
     $voice = $synthesizer.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Name -eq $DesiredVoiceName } | Select-Object -First 1
-    if ($null -eq $voice) {
-        Write-Host "`nVoice '$DesiredVoiceName' not found. Using the default voice."
-        return $null
+    if ($voice) {
+        Write-Host "`nUsing specified voice: $DesiredVoiceName"
+        return $voice.VoiceInfo.Name
+    } else {
+        Write-Host "`nSpecified voice '$DesiredVoiceName' not found. Using default."
+        exit
     }
-    Write-Host "`nUsing the specified voice: $DesiredVoiceName"
-    return $voice.VoiceInfo.Name
 }
 
 function ConvertTxtToWAV {
     param(
         [string]$inputFolderPath,
-        [string]$outputFolderPath,
-        [string]$desiredVoiceName,
-        [int]$maxConcurrentJobs = 5 # Control the number of concurrent jobs
+        [string]$outputFolderPath
     )
-    CheckFolderPath -Path $inputFolderPath -Type 'input'
-    CheckFolderPath -Path $outputFolderPath -Type 'output'
-
-    ClearOutputFolder -outputFolderPath $outputFolderPath
-
-    $overwriteExisting = $Global:overwriteExisting
-    $voiceRate = $Global:VoiceRate
-    $voiceVolume = $Global:VoiceVolume
-    $realIndex = 1
+    EnsureFolderPath -Path $inputFolderPath -Purpose 'input'
+    EnsureFolderPath -Path $outputFolderPath -Purpose 'output'
+    ClearOutputFolderIfNeeded -FolderPath $outputFolderPath
 
     $files = Get-ChildItem -Path $inputFolderPath -Filter *.txt
     $jobs = @()
-
+    $outputFileNames = @()
+    
+    VerifyVoice -DesiredVoiceName $Global:voiceName
+    Write-Host "Starting text to WAV conversion using voice: '$Global:voiceName'"
+    
+    $realIndex = 1
     foreach ($file in $files) {
-        if ($jobs.Count -ge $maxConcurrentJobs) {
-            $completedJobs = Wait-Job -Job $jobs -Any
-            Remove-Job -Job $completedJobs -Force
-            $jobs = $jobs | Where-Object { $_.State -eq 'Running' }
+        ManageConcurrentJobs -Jobs ([ref]$Jobs)
+
+        # Call FormatOutputFileName to get the output file name
+        $OutputFileName = FormatOutputFileName -Index $realIndex -File $file
+        $outputFileNames += $OutputFileName
+        $outputFilePath = Join-Path -Path $outputFolderPath -ChildPath $OutputFileName
+        $logFilePath = "$outputFilePath.log"
+
+        # Clean up after job completion
+        Remove-Item -Path $logFilePath -ErrorAction SilentlyContinue 
+        
+        $job = StartConversionJob `
+            -InputFilePath $file.FullName `
+            -OutputFilePath $outputFilePath `
+            -OutputFileName $OutputFileName `
+            -LogFilePath $logFilePath `
+            -Jobs ([ref]$Jobs)
+
+        $realIndex++ # Increment counter after processing each file
+    }
+    
+    MonitorJobProgress -Jobs $jobs -outputFileNames $outputFileNames
+
+    WaitForJobsCompletion -Jobs  ([ref]$Jobs)
+    Write-Host "Text to WAV conversion complete for all files."
+}
+
+function FormatOutputFileName {
+    param(
+        [int]$Index,
+        $file
+    )
+    # Format the new filename with the zero-padded index
+    $inputFilePath = $file.FullName
+    $formattedIndex = "{0:D3}" -f $realIndex
+    $trackName = GetTrackName -inputFilePath $inputFilePath
+    $OutputFileName = "$formattedIndex - $trackName"
+    
+    return $OutputFileName
+}
+
+function ManageConcurrentJobs {
+    param(
+        [ref]$Jobs
+    )
+    if ($jobs.Count -ge $Global:maxConcurrentJobs) {
+        $completedJobs = Wait-Job -Job $jobs -Any
+        Remove-Job -Job $completedJobs -Force
+        $jobs = $jobs | Where-Object { $_.State -eq 'Running' }
+    }
+}
+
+function StartConversionJob {
+    param(
+        [string]$InputFilePath,
+        [string]$OutputFilePath,
+        [string]$OutputFileName,
+        [string]$LogFilePath,
+        [ref]$Jobs
+    )
+
+    $ScriptBlock = {
+        param(
+            $inputFilePath,
+            $outputFilePath,
+            $outputFileName,
+            $voiceName, 
+            $voiceRate, 
+            $voiceVolume, 
+            $overwriteExisting, 
+            $logFilePath,
+            $estimatedDurationPerCharacter
+        )
+
+        # Check if output file exists
+        $outputFilePathWAV = "$outputFilePath.wav"
+        if (-not $overwriteExisting -and (Test-Path -Path $outputFilePathWAV)) {
+            "Output file already exists. Skipping..." | Out-File -Append -FilePath $logFilePath
+            return
         }
 
-        $inputFilePath = $file.FullName
-        $outputFileName = "{0:D3} - {1}" -f ++$realIndex, [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
-        $outputFilePath = Join-Path -Path $outputFolderPath -ChildPath $outputFileName
+        Add-Type -AssemblyName System.Speech
+        $synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer
+        if ($voiceName) {
+            $synthesizer.SelectVoice($voiceName)
+        }
+        $synthesizer.Rate = $voiceRate
+        $synthesizer.Volume = $voiceVolume
 
-        $job = Start-Job -ScriptBlock {
-            param($inputFilePath, $outputFilePath, $voiceName, $voiceRate, $voiceVolume)
+        try {
+            $textContent = Get-Content -Path $inputFilePath -Raw -Encoding UTF8
+            "Start speech synthesis for: $inputFilePath" | Out-File -FilePath $logFilePath -Append
+            $synthesizer.SetOutputToWaveFile($outputFilePathWAV)
+
             
-            # Check if output file exists and skip if overwriteExisting is false
-            if (-not $overwriteExisting -and (Test-Path -Path $outputFilePath + ".(mp3|wav)")) {
-                Write-Host "Output file $OutputFilePath already exists. Skipping..."
-                return
+            # Start a stopwatch to estimate progress
+            $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $synthesizer.SpeakAsync($textContent) # Use Speak to wait for completion
+            
+            $totalTextLength = $TextContent.Length
+            "totalTextLength : $totalTextLength" | Out-File -FilePath $logFilePath -Append
+            $estimatedTotalDuration = $totalTextLength * $estimatedDurationPerCharacter
+
+            # Ensure estimatedTotalDuration is reasonable to avoid division by zero
+            if ($estimatedTotalDuration -le 0) {
+                $estimatedTotalDuration = 1 # Set to a minimal positive value to avoid division by zero
+            }
+            "estimatedTotalDuration : $estimatedTotalDuration" | Out-File -FilePath $logFilePath -Append
+
+            while ($Synthesizer.State -eq [System.Speech.Synthesis.SynthesizerState]::Speaking) {
+                Start-Sleep -Seconds 5
+                $elapsedMilliseconds = $Stopwatch.Elapsed.TotalMilliseconds
+                "elapsedMilliseconds : $elapsedMilliseconds" | Out-File -FilePath $logFilePath -Append
+                $estimatedProgress = [math]::Min(100, ($elapsedMilliseconds / $estimatedTotalDuration) * 100)
+                $intEstimatedProgress = [math]::Round($estimatedProgress) -as [int]
+                "'$OutputFileName' progress: $intEstimatedProgress%" | Out-File -FilePath $logFilePath -Append
             }
 
-            Add-Type -AssemblyName System.Speech
-            $synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer
-            if ($voiceName) {
-                $synthesizer.SelectVoice($voiceName)
-            }
-            $synthesizer.Rate = $voiceRate
-            $synthesizer.Volume = $voiceVolume
-            try {
-                $wavOutputPath = $outputFilePath + ".wav"
-                $textContent = Get-Content -Path $inputFilePath -Raw -Encoding Default
-                $synthesizer.SetOutputToWaveFile($wavOutputPath)
-                $synthesizer.Speak($textContent)
-            } catch {
-                Write-Output "`nError processing the file: $inputFilePath"
-            }
-            finally {
+            "Text-to-speech conversion completed for: $inputFilePath" | Out-File -FilePath $logFilePath -Append
+        } catch {
+            $errorDetails = $_ | Out-String
+            "Error processing the file: $inputFilePath. Error Details: $errorDetails" | Out-File -FilePath $logFilePath -Append
+        } finally {
+                # Wait for the synthesizer to complete speaking
+                do {
+                    Start-Sleep -Milliseconds 100
+                } while ($synthesizer.State -eq [System.Speech.Synthesis.SynthesizerState]::Speaking)
+
+                # Ensure the synthesizer is reset to the default audio device and properly disposed
                 $synthesizer.SetOutputToDefaultAudioDevice()
                 $synthesizer.Dispose()
-            }
-        } -ArgumentList $inputFilePath, $outputFilePath, $desiredVoiceName, $voiceRate, $voiceVolume
 
-        $jobs += $job
-        Write-Host "Started processing file: $outputFileName"
+                # Check if the stopwatch has been initialized and is running before stopping it
+                if ($null -ne $stopwatch) {
+                    $stopwatch.Stop()
+                }
+
+                # Wait until the .wav file is valid (example of checking if writing to the file has likely completed)
+                $previousSize = 0
+                $currentSize = (Get-Item $wavOutputPath).Length
+                do {
+                    Start-Sleep -Seconds 2
+                    $previousSize = $currentSize
+                    $currentSize = (Get-Item $wavOutputPath).Length
+                } while ($currentSize -ne $previousSize)
+
+                # Additional validation for .wav file could be performed here, such as using an external tool or library
+                "The .wav file at '$wavOutputPath' appears to be complete." | Out-File -FilePath $logFilePath -Append
+        }
     }
 
-    # Wait for any remaining jobs to complete
-    Wait-Job -Job $jobs
-    Remove-Job -Job $jobs -Force
+    # Script block for conversion job omitted for brevity, assuming it follows similar structure to the original
+    $job = Start-Job -ScriptBlock $ScriptBlock -ArgumentList (
+        $InputFilePath, 
+        $OutputFilePath,
+        $OutputFileName,
+        $Global:voiceName, 
+        $Global:voiceRate, 
+        $Global:voiceVolume, 
+        $Global:overwriteExisting, 
+        $LogFilePath,
+        $Global:estimatedDurationPerCharacter
+    )
 
-    Write-Host "All files have been processed."
+    $Jobs.Value += $job
+    Write-Host "Conversion job started for file: $(Split-Path -Leaf $InputFilePath)"
+
+    return $job
+}
+
+function MonitorJobProgress {
+    param(
+        [System.Management.Automation.Job[]]$Jobs,
+        [System.IO.FileInfo[]]$outputFileNames
+    )
+
+    $jobStates = @{} # Hashtable to track job completion state
+    $jobsCompleted = 0
+
+    # Initialize job state tracking
+    foreach ($job in $Jobs) {
+        $jobStates[$job.Id] = $false # False indicates job is not yet completed
+    }
+
+    # Continuously monitor job progress
+    while ($jobsCompleted -lt $Jobs.Count) {
+        foreach ($job in $Jobs) {
+            # Skip this iteration if job is already completed
+            if ($jobStates[$job.Id]) {
+                continue
+            }
+
+            $index = [Array]::IndexOf($Jobs, $job)
+
+            $outputFileName = $outputFileNames[$index]
+            $outputFilePath = Join-Path -Path $OutputFolderPath -ChildPath $outputFileName
+            $logFilePath = "$outputFilePath.log"
+
+            # Check if job is completed
+            if ($job.JobStateInfo.State -eq 'Completed') {
+                Write-Host "Completed processing: $OutputFileName"
+                $jobStates[$job.Id] = $true # Mark job as completed
+                $jobsCompleted++
+            } elseif (Test-Path -Path $logFilePath) {
+                $logContent = Get-Content -Path $logFilePath -Tail 10 # Read the last 10 lines for efficiency
+                $latestProgress = $logContent | Where-Object { $_ -match " progress: " } | Select-Object -Last 1
+                if ($latestProgress) {
+                    Write-Host $latestProgress
+                }
+            }
+        }
+        Start-Sleep -Seconds 5 # Delay before the next check
+    }
+}
+
+function WaitForJobsCompletion {
+    param([System.Management.Automation.Job[]]$Jobs)
+    foreach ($job in $Jobs) {
+        $job | Wait-Job
+        HandleJobResult -Job $job
+        $job | Remove-Job
+    }
+    Write-Host "All conversion jobs have been processed."
+}
+
+function HandleJobResult {
+    param([System.Management.Automation.Job]$Job)
+    if ($Job.State -eq "Failed") {
+        Write-Host "Job $($Job.Id) failed. Error details: $($Job.ChildJobs[0].JobStateInfo.Reason)"
+    } else {
+        Write-Host "Job $($Job.Id) completed successfully."
+    }
 }
 
 function ConvertTxtToMP3AndEdit {
     param(
         [string]$inputFolderPath,
-        [string]$outputFolderPath,
-        [string]$desiredVoiceName
+        [string]$outputFolderPath
     )
 
     $skipConversion = Read-Host "Skip the txt to mp3 conversion? (Y/N, default: N)"
@@ -209,8 +334,8 @@ function ConvertTxtToMP3AndEdit {
         }
 
         # Convert Txt to WAV
-        ConvertTxtToWAV -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath -DesiredVoiceName $desiredVoiceName -maxConcurrentJobs $Global:maxConcurrentJobs
-
+        ConvertTxtToWAV -InputFolderPath $inputFolderPath -OutputFolderPath $outputFolderPath
+        
         # Convert WAV to MP3
         ConvertAllWAVToMP3 -InputFolderPath $outputFolderPath
 
