@@ -65,12 +65,12 @@ function ConvertWAVToMP3 {
         $coverImagePath = $Global:defaultCoverPath
     }
 
-    # Define the command to convert WAV to MP3 and set the cover image
+    # Define the command to adjust volume and convert WAV to MP3 with a cover image
     $commandParts = @(
         $Global:ffmpegPath,
         '-i', "`"$InputWAVFilePath`"",     # Input WAV file
         '-i', "`"$coverImagePath`"",       # Input cover image
-        '-map', '0:0',                     # Map audio stream
+        '-map', '0:a',                     # Map corrected audio stream
         '-map', '1:0',                     # Map image stream
         '-codec:a', 'libmp3lame',          # Audio codec
         '-qscale:a', '2',                  # Quality scale for audio
