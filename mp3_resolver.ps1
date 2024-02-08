@@ -1,11 +1,11 @@
 ﻿# Clear the screen
 Clear-Host
 
+$Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
+
 # Load setup.json content
 $setupJsonPath = Join-Path -Path $Global:currentPath -ChildPath "setup.json"
 $setupConfig = Get-Content -Path $setupJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-
-$Global:currentPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
 
 # Accessing the values
 $Global:defaultLibraryPath = $setupConfig.default_library_path
