@@ -121,25 +121,30 @@ function CreateOrUpdatePlaylist {
         [string]$PlaylistName = "playlist.m3u"
     )
 
+    # Ensure the output folder path is correctly handled
+    $OutputFolderPath = $OutputFolderPath -replace '\\', '\\'
+
     # Define the path for the playlist file
     $playlistFilePath = Join-Path -Path $OutputFolderPath -ChildPath $PlaylistName
 
     # Check if playlist file exists, if not, create it
-    if (Test-Path -Path $playlistFilePath) {
-        Remove-Item -Path $playlistFilePath
-        Write-Host "Overwritting existing playlist file: $PlaylistName"
+    if (Test-Path -LiteralPath $playlistFilePath) {
+        Remove-Item -LiteralPath $playlistFilePath
+        Write-Host "Overwriting existing playlist file: $playlistFilePath"
     } else {
-        Write-Host "Playlist file created: $PlaylistName"
+        Write-Host "Playlist file created: $playlistFilePath"
     }
     
     New-Item -Path $playlistFilePath -ItemType File
 
     # Get all MP3 files in the output folder
-    $mp3Files = Get-ChildItem -Path $OutputFolderPath -Filter "*.mp3"
+    $mp3Files = Get-ChildItem -LiteralPath $OutputFolderPath -Filter "*.mp3"
+
+    Write-Host "mp3Files: $mp3Files"
 
     # Append MP3 file paths to the playlist file
     foreach ($file in $mp3Files) {
-        Add-Content -Path $playlistFilePath -Value $file.FullName
+        Add-Content -LiteralPath $playlistFilePath -Value $file.FullName
     }
 
     Write-Host "Playlist updated with all MP3 files in $OutputFolderPath"
